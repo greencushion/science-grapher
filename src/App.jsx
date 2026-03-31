@@ -789,11 +789,6 @@ export default function App() {
           <button onClick={downloadTable} style={btnS(G.mid)}>⬇ Download results table (PNG)</button>
         </div>
       </div>
-	</div>
-      <Analytics />
-    </div>
-  );
-}
     </div>
   );
 }
@@ -806,6 +801,7 @@ function Field({ label, children, style }) {
         {label}
       </label>
       {children}
+	<Analytics />
     </div>
   );
 }
