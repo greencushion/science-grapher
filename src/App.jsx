@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from "react";
+import { Analytics } from "@vercel/analytics/react"
 
 const FONT = "'Courier New', monospace";
 const MONO = "'Courier New', monospace";
@@ -788,6 +789,11 @@ export default function App() {
           <button onClick={downloadTable} style={btnS(G.mid)}>⬇ Download results table (PNG)</button>
         </div>
       </div>
+	</div>
+      <Analytics />
+    </div>
+  );
+}
     </div>
   );
 }
