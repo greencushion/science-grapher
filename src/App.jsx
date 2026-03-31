@@ -1,9 +1,9 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { Analytics } from "@vercel/analytics/react"
-
+ 
 const FONT = "'Courier New', monospace";
 const MONO = "'Courier New', monospace";
-
+ 
 const G = {
   dark:    "#1a3d1f",
   mid:     "#2d6a35",
@@ -14,17 +14,17 @@ const G = {
   meanBg:  "#d4edda",
   meanTxt: "#155724",
 };
-
+ 
 const defaultRows = Array.from({ length: 8 }, (_, i) => ({
   id: i, x: "", r1: "", r2: "", r3: "",
 }));
-
+ 
 function mean(r1, r2, r3) {
   const nums = [r1, r2, r3].map(Number).filter((v, i) => [r1,r2,r3][i] !== "" && !isNaN(v));
   if (nums.length === 0) return "";
   return (nums.reduce((a, b) => a + b, 0) / nums.length).toFixed(2);
 }
-
+ 
 function niceScale(minVal, maxVal, ticks = 8) {
   if (minVal === maxVal) return { min: minVal - 1, max: maxVal + 1, step: 0.5 };
   const range = maxVal - minVal;
@@ -40,10 +40,12 @@ function niceScale(minVal, maxVal, ticks = 8) {
   const scaleMax = (Math.abs(ceiledMax - maxVal) < step * 0.001) ? ceiledMax + step : ceiledMax;
   return { min: scaleMin, max: scaleMax, step };
 }
-
-const MARGIN = { top: 56, right: 36, bottom: 76, left: 86 };
-const ASPECT = 3 / 2; // width:height ratio
-
+ 
+const MARGIN_DESKTOP = { top: 56, right: 36, bottom: 76, left: 86 };
+const MARGIN_MOBILE  = { top: 40, right: 20, bottom: 60, left: 64 };
+const ASPECT_DESKTOP = 3 / 2;
+const ASPECT_MOBILE = 4 / 3;
+ 
 export default function App() {
   const [xLabel, setXLabel] = useState("Independent variable");
   const [yLabel, setYLabel] = useState("Dependent variable");
@@ -65,13 +67,13 @@ export default function App() {
   const wrapperRef = useRef(null);
   const [canvasW, setCanvasW] = useState(900);
   const [isMobile, setIsMobile] = useState(() => window.innerWidth < 640);
-
+ 
   useEffect(() => {
     const onResize = () => setIsMobile(window.innerWidth < 640);
     window.addEventListener("resize", onResize);
     return () => window.removeEventListener("resize", onResize);
   }, []);
-
+ 
   // Hide number input spinners globally
   useEffect(() => {
     const style = document.createElement("style");
@@ -83,7 +85,7 @@ export default function App() {
     document.head.appendChild(style);
     return () => document.head.removeChild(style);
   }, []);
-
+ 
   // Resize observer — canvas fills its wrapper
   useEffect(() => {
     if (!wrapperRef.current) return;
@@ -99,10 +101,11 @@ export default function App() {
     ro.observe(wrapperRef.current);
     return () => ro.disconnect();
   }, []);
-
+ 
   const CW = canvasW;
-  const CH = Math.round(canvasW / ASPECT);
-
+  const CH = Math.round(canvasW / (isMobile ? ASPECT_MOBILE : ASPECT_DESKTOP));
+  const MARGIN = isMobile ? MARGIN_MOBILE : MARGIN_DESKTOP;
+ 
   // pendingData: derived live from table, used for the "ready" count
   const pendingData = rows
     .map((r) => ({
@@ -111,17 +114,17 @@ export default function App() {
         ? Number(mean(r.r1, r.r2, r.r3)) : null,
     }))
     .filter((d) => d.x !== null && d.y !== null && !isNaN(d.x) && !isNaN(d.y));
-
+ 
   // plotData: only updated when user clicks "Plot graph"
   const plotData = plottedData;
-
+ 
   const _autoX = plotData.length ? niceScale(Math.min(...plotData.map(d=>d.x)), Math.max(...plotData.map(d=>d.x))) : { min: 0, max: 10 };
   const _autoY = plotData.length ? niceScale(Math.min(...plotData.map(d=>d.y)), Math.max(...plotData.map(d=>d.y))) : { min: 0, max: 10 };
   const xMin = xScaleMin !== "" ? Number(xScaleMin) : _autoX.min;
   const xMax = xScaleMax !== "" ? Number(xScaleMax) : _autoX.max;
   const yMin = yScaleMin !== "" ? Number(yScaleMin) : _autoY.min;
   const yMax = yScaleMax !== "" ? Number(yScaleMax) : _autoY.max;
-
+ 
   const dataToCanvas = useCallback((dx, dy) => {
     const pW = CW - MARGIN.left - MARGIN.right;
     const pH = CH - MARGIN.top - MARGIN.bottom;
@@ -129,8 +132,8 @@ export default function App() {
       cx: MARGIN.left + ((dx - xMin) / (xMax - xMin)) * pW,
       cy: MARGIN.top + pH - ((dy - yMin) / (yMax - yMin)) * pH,
     };
-  }, [xMin, xMax, yMin, yMax, CW, CH]);
-
+  }, [xMin, xMax, yMin, yMax, CW, CH, MARGIN]);
+ 
   const canvasToData = useCallback((px, py) => {
     const pW = CW - MARGIN.left - MARGIN.right;
     const pH = CH - MARGIN.top - MARGIN.bottom;
@@ -138,8 +141,8 @@ export default function App() {
       dx: xMin + ((px - MARGIN.left) / pW) * (xMax - xMin),
       dy: yMin + ((CH - MARGIN.bottom - py) / pH) * (yMax - yMin),
     };
-  }, [xMin, xMax, yMin, yMax, CW, CH]);
-
+  }, [xMin, xMax, yMin, yMax, CW, CH, MARGIN]);
+ 
   const autoScale = useCallback(() => {
     if (!plotData.length) return;
     const xs = plotData.map(d => d.x), ys = plotData.map(d => d.y);
@@ -148,7 +151,7 @@ export default function App() {
     setXScaleMin(xS.min); setXScaleMax(xS.max);
     setYScaleMin(yS.min); setYScaleMax(yS.max);
   }, [plotData]);
-
+ 
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -161,13 +164,13 @@ export default function App() {
     ctx.scale(dpr, dpr);
     const pW = CW - MARGIN.left - MARGIN.right;
     const pH = CH - MARGIN.top - MARGIN.bottom;
-
+ 
     ctx.fillStyle = "#f5f8ff";
     ctx.fillRect(0, 0, CW, CH);
-
+ 
     const pixPerMM = 3.78;
     const xRange = xMax - xMin, yRange = yMax - yMin;
-
+ 
     // Guard: if range is zero or tiny, skip grid drawing to prevent infinite loops
     if (xRange <= 0 || yRange <= 0) {
       // Just draw axes and return early from grid section
@@ -176,7 +179,7 @@ export default function App() {
     const fineStepsY = Math.round(pH / pixPerMM);
     const fineStepX = fineStepsX > 0 ? xRange / fineStepsX : xRange;
     const fineStepY = fineStepsY > 0 ? yRange / fineStepsY : yRange;
-
+ 
     // 1mm fine grid
     ctx.strokeStyle = "#c8dff5"; ctx.lineWidth = 0.35;
     if (fineStepX > 0) {
@@ -191,7 +194,7 @@ export default function App() {
         ctx.beginPath(); ctx.moveTo(MARGIN.left, cy); ctx.lineTo(CW-MARGIN.right, cy); ctx.stroke();
       }
     }
-
+ 
     // 5mm grid
     const xScale = niceScale(xMin, xMax), yScale = niceScale(yMin, yMax);
     const xStep5 = xScale.step / 5, yStep5 = yScale.step / 5;
@@ -208,7 +211,7 @@ export default function App() {
         ctx.beginPath(); ctx.moveTo(MARGIN.left, cy); ctx.lineTo(CW-MARGIN.right, cy); ctx.stroke();
       }
     }
-
+ 
     // 1cm major grid
     ctx.strokeStyle = "#4a90c4"; ctx.lineWidth = 1.1;
     if (xScale.step > 0) {
@@ -224,7 +227,7 @@ export default function App() {
       }
     }
     } // end range guard
-
+ 
     // Axes
     ctx.strokeStyle = G.dark; ctx.lineWidth = 2;
     ctx.beginPath();
@@ -232,7 +235,7 @@ export default function App() {
     ctx.lineTo(MARGIN.left, CH-MARGIN.bottom);
     ctx.lineTo(CW-MARGIN.right, CH-MARGIN.bottom);
     ctx.stroke();
-
+ 
     // Tick labels — use safe scale computed outside guard
     const tickScaleX = niceScale(xMin, xMax), tickScaleY = niceScale(yMin, yMax);
     ctx.fillStyle = G.dark; ctx.font = `13px ${MONO}`; ctx.textAlign = "center";
@@ -253,7 +256,7 @@ export default function App() {
         ctx.fillText(+y.toFixed(8), cx-7, cy+4);
       }
     }
-
+ 
     // Axis titles
     ctx.fillStyle = G.dark; ctx.font = `bold 14px ${FONT}`; ctx.textAlign = "center";
     const xAxisLabel = xUnit ? `${xLabel} (${xUnit})` : xLabel;
@@ -264,11 +267,11 @@ export default function App() {
     ctx.rotate(-Math.PI/2);
     ctx.fillText(yAxisLabel, 0, 0);
     ctx.restore();
-
+ 
     // Graph title
     ctx.font = `bold 17px ${FONT}`; ctx.textAlign = "center"; ctx.fillStyle = G.dark;
     ctx.fillText(graphTitle, MARGIN.left + pW/2, 26);
-
+ 
     // Confirmed LOBF
     if (showLobf && lobfPoints.length === 2) {
       const p1 = dataToCanvas(lobfPoints[0].x, lobfPoints[0].y);
@@ -280,7 +283,7 @@ export default function App() {
       ctx.lineTo(CW-MARGIN.right, p1.cy + slope*(CW-MARGIN.right - p1.cx));
       ctx.stroke(); ctx.restore();
     }
-
+ 
     // LOBF preview
     if (lobfMode) {
       lobfPoints.forEach((pt) => {
@@ -300,7 +303,7 @@ export default function App() {
         ctx.stroke(); ctx.restore();
       }
     }
-
+ 
     // Data points (crosses)
     plotData.forEach((d) => {
       const { cx, cy } = dataToCanvas(d.x, d.y);
@@ -308,7 +311,7 @@ export default function App() {
       ctx.beginPath(); ctx.moveTo(cx-5, cy); ctx.lineTo(cx+5, cy); ctx.stroke();
       ctx.beginPath(); ctx.moveTo(cx, cy-5); ctx.lineTo(cx, cy+5); ctx.stroke();
     });
-
+ 
     // Hover tooltip
     if (hoveredPoint) {
       const { cx, cy } = dataToCanvas(hoveredPoint.x, hoveredPoint.y);
@@ -340,8 +343,8 @@ export default function App() {
       ctx.fillText(lbl, bx + 8, by + boxH - 7);
     }
   }, [plotData, xMin, xMax, yMin, yMax, xLabel, yLabel, xUnit, yUnit,
-      graphTitle, lobfPoints, lobfMode, showLobf, hoveredPoint, dataToCanvas, canvasW]);
-
+      graphTitle, lobfPoints, lobfMode, showLobf, hoveredPoint, dataToCanvas, canvasW, MARGIN]);
+ 
   const handleCanvasClick = (e) => {
     if (!lobfMode) return;
     const rect = canvasRef.current.getBoundingClientRect();
@@ -353,7 +356,7 @@ export default function App() {
       setLobfPoints(prev => [...prev, { x: parseFloat(dx.toFixed(3)), y: parseFloat(dy.toFixed(3)) }]);
     }
   };
-
+ 
   const handleCanvasTouch = (e) => {
     // On mobile, treat a tap as a hover to show the tooltip (or LOBF click)
     const touch = e.touches[0];
@@ -377,7 +380,7 @@ export default function App() {
       }
     }
   };
-
+ 
   const handleCanvasMouseMove = (e) => {
     const rect = canvasRef.current.getBoundingClientRect();
     const px = (e.clientX - rect.left) * (CW / rect.width);
@@ -389,7 +392,7 @@ export default function App() {
     }
     setHoveredPoint(found);
   };
-
+ 
   const handlePlot = () => {
     const data = rows
       .map((r) => ({
@@ -401,14 +404,14 @@ export default function App() {
     setPlottedData(data);
     clearLobf();
   };
-
+ 
   const commitLobf = () => { if (lobfPoints.length === 2) { setShowLobf(true); setLobfMode(false); } };
   const clearLobf  = () => { setLobfPoints([]); setShowLobf(false); setLobfMode(false); };
   const updateRow  = (id, field, val) => setRows(rows.map(r => r.id === id ? {...r, [field]: val} : r));
   const addRow     = () => setRows([...rows, { id: Date.now(), x:"", r1:"", r2:"", r3:"" }]);
   const removeRow  = (id) => setRows(rows.filter(r => r.id !== id));
-
-
+ 
+ 
   const downloadGraph = () => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -417,15 +420,15 @@ export default function App() {
     link.href = canvas.toDataURL("image/png");
     link.click();
   };
-
+ 
   const downloadTable = () => {
     const rows_data = rows.filter(r => r.x !== "" || r.r1 !== "" || r.r2 !== "" || r.r3 !== "");
     if (rows_data.length === 0) return;
-
+ 
     const dpr = window.devicePixelRatio || 1;
     const FONT_HDR = 13, FONT_BODY = 14;
     const colW = 220, rowH = 36, pad = 10;
-
+ 
     // Measure header height needed (headers may wrap to 2 lines)
     const cols = [
       xLabel + (xUnit ? ` (${xUnit})` : ""),
@@ -434,7 +437,7 @@ export default function App() {
       `${yLabel}${yUnit ? ` (${yUnit})` : ""} — reading 3`,
       `Mean ${yLabel}${yUnit ? ` (${yUnit})` : ""}`,
     ];
-
+ 
     // Helper: split text into lines that fit within maxW
     const wrapText = (ctx, text, maxW) => {
       const words = text.split(" ");
@@ -452,17 +455,17 @@ export default function App() {
       if (line) lines.push(line);
       return lines.length ? lines : [text];
     };
-
+ 
     const totalW = colW * cols.length;
     const totalH_approx = 80 + rowH * rows_data.length + 20;
-
+ 
     // Create canvas
     const tc = document.createElement("canvas");
     tc.width = totalW * dpr;
     tc.height = totalH_approx * dpr;
     const tx = tc.getContext("2d");
     tx.scale(dpr, dpr);
-
+ 
     // Measure actual header height using wrap
     tx.font = `bold ${FONT_HDR}px 'Courier New', monospace`;
     let maxLines = 1;
@@ -472,24 +475,24 @@ export default function App() {
     });
     const headerH = maxLines * (FONT_HDR + 6) + pad * 2;
     const totalH = headerH + rowH * rows_data.length + 4;
-
+ 
     // Resize canvas to actual height
     tc.width = totalW * dpr;
     tc.height = totalH * dpr;
     tx.scale(dpr, dpr);
-
+ 
     // Background
     tx.fillStyle = "#fafef8";
     tx.fillRect(0, 0, totalW, totalH);
-
+ 
     // Header background
     tx.fillStyle = G.dark;
     tx.fillRect(0, 0, totalW, headerH);
-
+ 
     // Mean col header slightly different shade
     tx.fillStyle = G.mid;
     tx.fillRect(4 * colW, 0, colW, headerH);
-
+ 
     // Header text (wrapped)
     tx.fillStyle = "#ffffff";
     tx.font = `bold ${FONT_HDR}px 'Courier New', monospace`;
@@ -504,28 +507,28 @@ export default function App() {
         tx.fillText(line, i * colW + colW / 2, startY + li * lineH);
       });
     });
-
+ 
     // Header dividers
     tx.strokeStyle = "rgba(255,255,255,0.3)"; tx.lineWidth = 1;
     cols.forEach((_, i) => {
       if (i === 0) return;
       tx.beginPath(); tx.moveTo(i * colW, 0); tx.lineTo(i * colW, headerH); tx.stroke();
     });
-
+ 
     // Data rows
     tx.font = `${FONT_BODY}px 'Courier New', monospace`;
     rows_data.forEach((row, ri) => {
       const m = mean(row.r1, row.r2, row.r3);
       const vals = [row.x, row.r1, row.r2, row.r3, m !== "" ? m : "—"];
       const y = headerH + ri * rowH;
-
+ 
       // Row background
       tx.fillStyle = ri % 2 === 0 ? "#edf7ef" : "#ffffff";
       tx.fillRect(0, y, totalW, rowH);
       // Mean col background
       tx.fillStyle = m !== "" ? "#d4edda" : "#f5f5f5";
       tx.fillRect(4 * colW, y, colW, rowH);
-
+ 
       vals.forEach((v, ci) => {
         tx.fillStyle = ci === 4 ? (m !== "" ? G.meanTxt : "#bbb") : G.dark;
         tx.font = ci === 4
@@ -535,32 +538,32 @@ export default function App() {
         tx.textBaseline = "middle";
         tx.fillText(String(v !== "" ? v : ""), ci * colW + colW / 2, y + rowH / 2);
       });
-
+ 
       // Row bottom rule
       tx.strokeStyle = "#b8d4b8"; tx.lineWidth = 1;
       tx.beginPath(); tx.moveTo(0, y + rowH); tx.lineTo(totalW, y + rowH); tx.stroke();
     });
-
+ 
     // Vertical dividers (x col right, mean col left)
     tx.strokeStyle = G.dark; tx.lineWidth = 2;
     tx.beginPath(); tx.moveTo(colW, headerH); tx.lineTo(colW, totalH); tx.stroke();
     tx.beginPath(); tx.moveTo(4 * colW, headerH); tx.lineTo(4 * colW, totalH); tx.stroke();
-
+ 
     // Outer border
     tx.strokeStyle = G.dark; tx.lineWidth = 2;
     tx.strokeRect(1, 1, totalW - 2, totalH - 2);
-
+ 
     // Header bottom double line
     tx.strokeStyle = G.dark; tx.lineWidth = 1;
     tx.beginPath(); tx.moveTo(0, headerH - 3); tx.lineTo(totalW, headerH - 3); tx.stroke();
     tx.beginPath(); tx.moveTo(0, headerH); tx.lineTo(totalW, headerH); tx.stroke();
-
+ 
     const link = document.createElement("a");
     link.download = `${graphTitle.replace(/\s+/g, "_") || "results"}_table.png`;
     link.href = tc.toDataURL("image/png");
     link.click();
   };
-
+ 
   const roundTo2dp = (val, setter, rowId, field) => {
     const n = parseFloat(val);
     if (!isNaN(n)) {
@@ -568,23 +571,23 @@ export default function App() {
       updateRow(rowId, field, String(rounded));
     }
   };
-
+ 
   const lobfSlope = showLobf && lobfPoints.length === 2
     ? ((lobfPoints[1].y - lobfPoints[0].y) / (lobfPoints[1].x - lobfPoints[0].x)).toFixed(4)
     : null;
-
+ 
   const yColHeader = (n) => `${yLabel || "y"}${yUnit ? ` (${yUnit})` : ""} — reading ${n}`;
   const meanColHeader = () => `Mean ${yLabel || "y"}${yUnit ? ` (${yUnit})` : ""}`;
-
+ 
   const sInput = {
     padding: "6px 9px", border: `1.5px solid ${G.light}`, borderRadius: "5px",
     fontFamily: MONO, fontSize: isMobile ? "13px" : "14px", background: G.paper, color: G.dark,
     width: isMobile ? "100%" : "82px", textAlign: "center", boxSizing: "border-box",
   };
-
+ 
   return (
     <div style={{ fontFamily: FONT, background: "#edf7ef", minHeight: "100vh", padding: isMobile ? "8px" : "14px 16px" }}>
-
+ 
       {/* Header */}
       <div style={{
         background: "#ffffff",
@@ -622,7 +625,7 @@ export default function App() {
           <div style={{ color: "#111", fontSize: isMobile ? "20px" : "34px", fontWeight: "bold", fontFamily: MONO, letterSpacing: "-0.5px", lineHeight: 1.2 }}>School Science Graph Plotter</div>
         </div>
       </div>
-
+ 
       {/* Variable setup */}
       <div style={{
         background: "#fff", borderRadius: "8px", padding: "10px 12px", marginBottom: "10px",
@@ -631,6 +634,9 @@ export default function App() {
         gap: isMobile ? "8px" : "10px",
         alignItems: "flex-end",
         boxShadow: "0 1px 6px rgba(0,0,0,0.07)",
+        boxSizing: "border-box",
+        width: "100%",
+        overflow: "hidden",
       }}>
         <Field label="Graph title" style={isMobile ? { gridColumn: "1 / -1" } : {}}>
           <input value={graphTitle} onChange={e => setGraphTitle(e.target.value)}
@@ -653,7 +659,7 @@ export default function App() {
             style={sInput} placeholder="e.g. cm³/s" />
         </Field>
       </div>
-
+ 
       {/* Data table */}
       <div style={{
         background: "#fafef8", borderRadius: "8px", padding: isMobile ? "8px" : "10px 14px", marginBottom: "10px",
@@ -705,13 +711,14 @@ export default function App() {
             })}
           </tbody>
         </table>
-        <div style={{ marginTop: "8px", display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
-          <button onClick={addRow} style={btnS(G.mid)}>+ Add row</button>
+        <div style={{ marginTop: "8px", display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap", flexDirection: isMobile ? "column" : "row" }}>
+          <button onClick={addRow} style={{ ...btnS(G.mid), width: isMobile ? "100%" : "auto" }}>+ Add row</button>
           <button
             onClick={handlePlot}
             disabled={pendingData.length === 0}
             style={{ ...btnS(pendingData.length > 0 ? G.dark : "#aaa"),
-              opacity: pendingData.length > 0 ? 1 : 0.5, cursor: pendingData.length > 0 ? "pointer" : "not-allowed" }}>
+              opacity: pendingData.length > 0 ? 1 : 0.5, cursor: pendingData.length > 0 ? "pointer" : "not-allowed",
+              width: isMobile ? "100%" : "auto" }}>
             📈 Plot graph ({pendingData.length} point{pendingData.length !== 1 ? "s" : ""})
           </button>
           {plottedData.length > 0 && pendingData.length !== plottedData.length && (
@@ -721,42 +728,42 @@ export default function App() {
           )}
         </div>
       </div>
-
+ 
       {/* Graph section */}
       <div style={{
-        background: "#fff", borderRadius: "8px", padding: "10px 14px",
+        background: "#fff", borderRadius: "8px", padding: isMobile ? "8px" : "10px 14px",
         boxShadow: "0 1px 6px rgba(0,0,0,0.07)",
       }}>
         {/* Scale + LOBF controls */}
         <div style={{ display: "flex", gap: "8px", alignItems: "flex-end", flexWrap: "wrap", marginBottom: "8px", flexDirection: isMobile ? "column" : "row" }}>
           <div style={{ display:"flex", gap:"6px", alignItems:"flex-end", background: G.pale, padding:"6px 10px", borderRadius:"6px", width: isMobile ? "100%" : "auto" }}>
             <span style={{ fontSize:"11px", fontFamily: MONO, color: G.dark, alignSelf:"center", fontWeight:"bold" }}>X:</span>
-            <Field label="min"><input value={xScaleMin} onChange={e=>setXScaleMin(e.target.value)} style={sInput} type="number" /></Field>
-            <Field label="max"><input value={xScaleMax} onChange={e=>setXScaleMax(e.target.value)} style={sInput} type="number" /></Field>
+            <Field label="min" style={isMobile ? { flex:1 } : {}}><input value={xScaleMin} onChange={e=>setXScaleMin(e.target.value)} style={{ ...sInput, width:"100%" }} type="number" /></Field>
+            <Field label="max" style={isMobile ? { flex:1 } : {}}><input value={xScaleMax} onChange={e=>setXScaleMax(e.target.value)} style={{ ...sInput, width:"100%" }} type="number" /></Field>
           </div>
           <div style={{ display:"flex", gap:"6px", alignItems:"flex-end", background: G.pale, padding:"6px 10px", borderRadius:"6px", width: isMobile ? "100%" : "auto" }}>
             <span style={{ fontSize:"11px", fontFamily: MONO, color: G.dark, alignSelf:"center", fontWeight:"bold" }}>Y:</span>
-            <Field label="min"><input value={yScaleMin} onChange={e=>setYScaleMin(e.target.value)} style={sInput} type="number" /></Field>
-            <Field label="max"><input value={yScaleMax} onChange={e=>setYScaleMax(e.target.value)} style={sInput} type="number" /></Field>
+            <Field label="min" style={isMobile ? { flex:1 } : {}}><input value={yScaleMin} onChange={e=>setYScaleMin(e.target.value)} style={{ ...sInput, width:"100%" }} type="number" /></Field>
+            <Field label="max" style={isMobile ? { flex:1 } : {}}><input value={yScaleMax} onChange={e=>setYScaleMax(e.target.value)} style={{ ...sInput, width:"100%" }} type="number" /></Field>
           </div>
-          <button onClick={autoScale} style={btnS(G.bright)}>⚡ Auto-scale</button>
-
-          <div style={{ marginLeft: isMobile ? "0" : "auto", display:"flex", gap:"8px", alignItems:"center", flexWrap:"wrap" }}>
+          <button onClick={autoScale} style={{ ...btnS(G.bright), width: isMobile ? "100%" : "auto" }}>⚡ Auto-scale</button>
+ 
+          <div style={{ marginLeft: isMobile ? "0" : "auto", display:"flex", gap:"8px", alignItems:"center", flexWrap:"wrap", width: isMobile ? "100%" : "auto" }}>
             {!lobfMode && !showLobf && (
-              <button onClick={() => { setLobfPoints([]); setLobfMode(true); }} style={btnS("#8e44ad")}>
+              <button onClick={() => { setLobfPoints([]); setLobfMode(true); }} style={{ ...btnS("#8e44ad"), width: isMobile ? "100%" : "auto" }}>
                 ✏️ Draw best-fit line
               </button>
             )}
             {lobfMode && lobfPoints.length < 2 && (
               <span style={{ fontSize:"12px", color:"#6c3483", fontFamily: MONO, background:"#f5e6ff", padding:"5px 10px", borderRadius:"5px" }}>
-                Click {2-lobfPoints.length} point{lobfPoints.length===1?"":"s"} on graph
+                {isMobile ? "Tap" : "Click"} {2-lobfPoints.length} point{lobfPoints.length===1?"":"s"} on graph
               </span>
             )}
             {lobfMode && lobfPoints.length === 2 && (
-              <button onClick={commitLobf} style={btnS("#27ae60")}>✓ Confirm line</button>
+              <button onClick={commitLobf} style={{ ...btnS("#27ae60"), width: isMobile ? "100%" : "auto" }}>✓ Confirm line</button>
             )}
             {(lobfMode || showLobf) && (
-              <button onClick={clearLobf} style={btnS("#c0392b")}>✕ Remove</button>
+              <button onClick={clearLobf} style={{ ...btnS("#c0392b"), width: isMobile ? "100%" : "auto" }}>✕ Remove</button>
             )}
             {showLobf && lobfSlope && (
               <span style={{ fontSize:"12px", color:"#922b21", fontFamily: MONO, background:"#fadbd8", padding:"5px 10px", borderRadius:"5px" }}>
@@ -765,7 +772,7 @@ export default function App() {
             )}
           </div>
         </div>
-
+ 
         {/* Canvas */}
         <div ref={wrapperRef} style={{
           border: `2px solid ${G.dark}`, borderRadius: "3px", overflow: "hidden",
@@ -784,28 +791,28 @@ export default function App() {
         <div style={{ marginTop:"6px", fontSize: isMobile ? "10px" : "11px", color:"#777", fontFamily: MONO }}>
           💡 {isMobile ? 'Tap a point to see its value. Use "Draw best-fit line" then tap two positions.' : 'Hover over a point to see its value. Use "Draw best-fit line" then click two positions.'}
         </div>
-        <div style={{ marginTop:"10px", display:"flex", gap:"8px", flexWrap:"wrap" }}>
-          <button onClick={downloadGraph} style={btnS(G.dark)}>⬇ Download graph (PNG)</button>
-          <button onClick={downloadTable} style={btnS(G.mid)}>⬇ Download results table (PNG)</button>
+        <div style={{ marginTop:"10px", display:"flex", gap:"8px", flexWrap:"wrap", flexDirection: isMobile ? "column" : "row" }}>
+          <button onClick={downloadGraph} style={{ ...btnS(G.dark), width: isMobile ? "100%" : "auto" }}>⬇ Download graph (PNG)</button>
+          <button onClick={downloadTable} style={{ ...btnS(G.mid), width: isMobile ? "100%" : "auto" }}>⬇ Download results table (PNG)</button>
         </div>
       </div>
     </div>
   );
 }
-
+ 
 function Field({ label, children, style }) {
   return (
-    <div style={style}>
+    <div style={{ minWidth: 0, ...style }}>
       <label style={{ display:"block", fontSize:"10px", fontFamily:"'Courier New',monospace",
         color:"#555", marginBottom:"2px", textTransform:"uppercase", letterSpacing:"0.4px" }}>
         {label}
       </label>
       {children}
-	<Analytics />
+      <Analytics />
     </div>
   );
 }
-
+ 
 // Exercise-book table styles
 // Header cells
 const thBase = { padding:"8px 8px", textAlign:"center", fontFamily:"'Courier New',monospace", fontSize:"inherit", fontWeight:"bold", letterSpacing:"0.3px", color:"#1a3d1f", background:"transparent" };
