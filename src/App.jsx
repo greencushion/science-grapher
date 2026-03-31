@@ -63,6 +63,13 @@ export default function App() {
   const tableRef = useRef(null);
   const wrapperRef = useRef(null);
   const [canvasW, setCanvasW] = useState(900);
+  const [isMobile, setIsMobile] = useState(() => window.innerWidth < 640);
+
+  useEffect(() => {
+    const onResize = () => setIsMobile(window.innerWidth < 640);
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
 
   // Hide number input spinners globally
   useEffect(() => {
@@ -346,6 +353,30 @@ export default function App() {
     }
   };
 
+  const handleCanvasTouch = (e) => {
+    // On mobile, treat a tap as a hover to show the tooltip (or LOBF click)
+    const touch = e.touches[0];
+    if (!touch) return;
+    const rect = canvasRef.current.getBoundingClientRect();
+    const px = (touch.clientX - rect.left) * (CW / rect.width);
+    const py = (touch.clientY - rect.top)  * (CH / rect.height);
+    // Check proximity to data points for tooltip
+    let found = null;
+    for (const d of plotData) {
+      const { cx, cy } = dataToCanvas(d.x, d.y);
+      if (Math.hypot(cx-px, cy-py) < 20) { found = d; break; }
+    }
+    setHoveredPoint(found);
+    // If in LOBF mode, treat tap as a click
+    if (lobfMode) {
+      if (px < MARGIN.left || px > CW-MARGIN.right || py < MARGIN.top || py > CH-MARGIN.bottom) return;
+      if (lobfPoints.length < 2) {
+        const { dx, dy } = canvasToData(px, py);
+        setLobfPoints(prev => [...prev, { x: parseFloat(dx.toFixed(3)), y: parseFloat(dy.toFixed(3)) }]);
+      }
+    }
+  };
+
   const handleCanvasMouseMove = (e) => {
     const rect = canvasRef.current.getBoundingClientRect();
     const px = (e.clientX - rect.left) * (CW / rect.width);
@@ -546,24 +577,24 @@ export default function App() {
 
   const sInput = {
     padding: "6px 9px", border: `1.5px solid ${G.light}`, borderRadius: "5px",
-    fontFamily: MONO, fontSize: "14px", background: G.paper, color: G.dark,
-    width: "82px", textAlign: "center",
+    fontFamily: MONO, fontSize: isMobile ? "13px" : "14px", background: G.paper, color: G.dark,
+    width: isMobile ? "100%" : "82px", textAlign: "center", boxSizing: "border-box",
   };
 
   return (
-    <div style={{ fontFamily: FONT, background: "#edf7ef", minHeight: "100vh", padding: "14px 16px" }}>
+    <div style={{ fontFamily: FONT, background: "#edf7ef", minHeight: "100vh", padding: isMobile ? "8px" : "14px 16px" }}>
 
       {/* Header */}
       <div style={{
         background: "#ffffff",
         backgroundImage: "repeating-linear-gradient(transparent, transparent 31px, #b0c4b0 31px, #b0c4b0 32px)",
-        borderRadius: "6px", padding: "18px 24px", marginBottom: "12px",
-        display: "flex", alignItems: "center", gap: "20px",
+        borderRadius: "6px", padding: isMobile ? "12px 14px" : "18px 24px", marginBottom: "10px",
+        display: "flex", alignItems: "center", gap: "16px",
         boxShadow: "0 2px 8px rgba(0,0,0,0.12)",
         borderLeft: "6px solid #c0392b",
         position: "relative", overflow: "hidden",
       }}>
-        <svg width="52" height="52" viewBox="0 0 52 52" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ flexShrink: 0 }}>
+        <svg width="52" height="52" viewBox="0 0 52 52" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ flexShrink: 0, display: isMobile ? "none" : "block" }}>
           {/* Graph paper background */}
           <rect width="52" height="52" rx="4" fill="#f0f8ff"/>
           {/* Fine grid */}
@@ -587,23 +618,26 @@ export default function App() {
           <line x1="10" y1="40" x2="44" y2="10" stroke="#c0392b" strokeWidth="1.8"/>
         </svg>
         <div style={{ borderLeft: "2px solid rgba(0,0,0,0.1)", paddingLeft: "20px" }}>
-          <div style={{ color: "#111", fontSize: "34px", fontWeight: "bold", fontFamily: MONO, letterSpacing: "-0.5px", lineHeight: 1.2 }}>School Science Graph Plotter</div>
+          <div style={{ color: "#111", fontSize: isMobile ? "20px" : "34px", fontWeight: "bold", fontFamily: MONO, letterSpacing: "-0.5px", lineHeight: 1.2 }}>School Science Graph Plotter</div>
         </div>
       </div>
 
       {/* Variable setup */}
       <div style={{
-        background: "#fff", borderRadius: "8px", padding: "10px 14px", marginBottom: "10px",
-        display: "flex", gap: "10px", flexWrap: "wrap", alignItems: "flex-end",
+        background: "#fff", borderRadius: "8px", padding: "10px 12px", marginBottom: "10px",
+        display: "grid",
+        gridTemplateColumns: isMobile ? "1fr 1fr" : "auto auto auto auto auto",
+        gap: isMobile ? "8px" : "10px",
+        alignItems: "flex-end",
         boxShadow: "0 1px 6px rgba(0,0,0,0.07)",
       }}>
-        <Field label="Graph title">
+        <Field label="Graph title" style={isMobile ? { gridColumn: "1 / -1" } : {}}>
           <input value={graphTitle} onChange={e => setGraphTitle(e.target.value)}
-            style={{ ...sInput, width: "180px", textAlign: "left" }} />
+            style={{ ...sInput, width: isMobile ? "100%" : "180px", textAlign: "left" }} />
         </Field>
         <Field label="X-axis variable">
           <input value={xLabel} onChange={e => setXLabel(e.target.value)}
-            style={{ ...sInput, width: "150px", textAlign: "left" }} placeholder="e.g. Temperature" />
+            style={{ ...sInput, width: isMobile ? "100%" : "150px", textAlign: "left" }} placeholder="e.g. Temperature" />
         </Field>
         <Field label="X unit">
           <input value={xUnit} onChange={e => setXUnit(e.target.value)}
@@ -611,7 +645,7 @@ export default function App() {
         </Field>
         <Field label="Y-axis variable">
           <input value={yLabel} onChange={e => setYLabel(e.target.value)}
-            style={{ ...sInput, width: "150px", textAlign: "left" }} placeholder="e.g. Rate" />
+            style={{ ...sInput, width: isMobile ? "100%" : "150px", textAlign: "left" }} placeholder="e.g. Rate" />
         </Field>
         <Field label="Y unit">
           <input value={yUnit} onChange={e => setYUnit(e.target.value)}
@@ -621,11 +655,12 @@ export default function App() {
 
       {/* Data table */}
       <div style={{
-        background: "#fafef8", borderRadius: "8px", padding: "10px 14px", marginBottom: "10px",
+        background: "#fafef8", borderRadius: "8px", padding: isMobile ? "8px" : "10px 14px", marginBottom: "10px",
         boxShadow: "0 1px 6px rgba(0,0,0,0.07)", overflowX: "auto",
         fontFamily: MONO,
+        WebkitOverflowScrolling: "touch",
       }}>
-        <table style={{ width: "100%", borderCollapse: "collapse", fontFamily: MONO, fontSize: "15px", background: "#fafef8" }}>
+        <table style={{ width: "100%", borderCollapse: "collapse", fontFamily: MONO, fontSize: isMobile ? "12px" : "15px", background: "#fafef8" }}>
           <thead>
             <tr style={{ background: "transparent" }}>
               <th style={thX}>{xLabel || "x"}{xUnit ? ` (${xUnit})` : ""}</th>
@@ -692,20 +727,20 @@ export default function App() {
         boxShadow: "0 1px 6px rgba(0,0,0,0.07)",
       }}>
         {/* Scale + LOBF controls */}
-        <div style={{ display: "flex", gap: "8px", alignItems: "flex-end", flexWrap: "wrap", marginBottom: "8px" }}>
-          <div style={{ display:"flex", gap:"6px", alignItems:"flex-end", background: G.pale, padding:"6px 10px", borderRadius:"6px" }}>
+        <div style={{ display: "flex", gap: "8px", alignItems: "flex-end", flexWrap: "wrap", marginBottom: "8px", flexDirection: isMobile ? "column" : "row" }}>
+          <div style={{ display:"flex", gap:"6px", alignItems:"flex-end", background: G.pale, padding:"6px 10px", borderRadius:"6px", width: isMobile ? "100%" : "auto" }}>
             <span style={{ fontSize:"11px", fontFamily: MONO, color: G.dark, alignSelf:"center", fontWeight:"bold" }}>X:</span>
             <Field label="min"><input value={xScaleMin} onChange={e=>setXScaleMin(e.target.value)} style={sInput} type="number" /></Field>
             <Field label="max"><input value={xScaleMax} onChange={e=>setXScaleMax(e.target.value)} style={sInput} type="number" /></Field>
           </div>
-          <div style={{ display:"flex", gap:"6px", alignItems:"flex-end", background: G.pale, padding:"6px 10px", borderRadius:"6px" }}>
+          <div style={{ display:"flex", gap:"6px", alignItems:"flex-end", background: G.pale, padding:"6px 10px", borderRadius:"6px", width: isMobile ? "100%" : "auto" }}>
             <span style={{ fontSize:"11px", fontFamily: MONO, color: G.dark, alignSelf:"center", fontWeight:"bold" }}>Y:</span>
             <Field label="min"><input value={yScaleMin} onChange={e=>setYScaleMin(e.target.value)} style={sInput} type="number" /></Field>
             <Field label="max"><input value={yScaleMax} onChange={e=>setYScaleMax(e.target.value)} style={sInput} type="number" /></Field>
           </div>
           <button onClick={autoScale} style={btnS(G.bright)}>⚡ Auto-scale</button>
 
-          <div style={{ marginLeft:"auto", display:"flex", gap:"8px", alignItems:"center", flexWrap:"wrap" }}>
+          <div style={{ marginLeft: isMobile ? "0" : "auto", display:"flex", gap:"8px", alignItems:"center", flexWrap:"wrap" }}>
             {!lobfMode && !showLobf && (
               <button onClick={() => { setLobfPoints([]); setLobfMode(true); }} style={btnS("#8e44ad")}>
                 ✏️ Draw best-fit line
@@ -741,11 +776,12 @@ export default function App() {
             onClick={handleCanvasClick}
             onMouseMove={handleCanvasMouseMove}
             onMouseLeave={() => setHoveredPoint(null)}
-            style={{ display:"block" }}
+            onTouchStart={handleCanvasTouch}
+            style={{ display:"block", touchAction: lobfMode ? "none" : "auto" }}
           />
         </div>
-        <div style={{ marginTop:"6px", fontSize:"11px", color:"#777", fontFamily: MONO }}>
-          💡 Hover over a point to see its value. Use "Draw best-fit line" then click two positions on the graph.
+        <div style={{ marginTop:"6px", fontSize: isMobile ? "10px" : "11px", color:"#777", fontFamily: MONO }}>
+          💡 {isMobile ? 'Tap a point to see its value. Use "Draw best-fit line" then tap two positions.' : 'Hover over a point to see its value. Use "Draw best-fit line" then click two positions.'}
         </div>
         <div style={{ marginTop:"10px", display:"flex", gap:"8px", flexWrap:"wrap" }}>
           <button onClick={downloadGraph} style={btnS(G.dark)}>⬇ Download graph (PNG)</button>
@@ -756,9 +792,9 @@ export default function App() {
   );
 }
 
-function Field({ label, children }) {
+function Field({ label, children, style }) {
   return (
-    <div>
+    <div style={style}>
       <label style={{ display:"block", fontSize:"10px", fontFamily:"'Courier New',monospace",
         color:"#555", marginBottom:"2px", textTransform:"uppercase", letterSpacing:"0.4px" }}>
         {label}
@@ -770,14 +806,14 @@ function Field({ label, children }) {
 
 // Exercise-book table styles
 // Header cells
-const thBase = { padding:"11px 14px", textAlign:"center", fontFamily:"'Courier New',monospace", fontSize:"14px", fontWeight:"bold", letterSpacing:"0.3px", color:"#1a3d1f", background:"transparent" };
+const thBase = { padding:"8px 8px", textAlign:"center", fontFamily:"'Courier New',monospace", fontSize:"inherit", fontWeight:"bold", letterSpacing:"0.3px", color:"#1a3d1f", background:"transparent" };
 const thX    = { ...thBase, borderBottom:"3px double #1a3d1f", borderRight:"2px solid #1a3d1f" };
 const thMid  = { ...thBase, borderBottom:"3px double #1a3d1f" };
 const thMean = { ...thBase, borderBottom:"3px double #1a3d1f", borderLeft:"2px solid #1a3d1f" };
 // Body cells
-const tdBase = { padding:"5px 8px", borderBottom:"1px solid #b8d4b8" };
+const tdBase = { padding:"4px 5px", borderBottom:"1px solid #b8d4b8" };
 const tdX    = { ...tdBase, borderRight:"2px solid #1a3d1f" };
 const tdMid  = { ...tdBase };
 const tdMean = { ...tdBase, borderLeft:"2px solid #1a3d1f", textAlign:"center" };
-const cellS = { width:"100%", padding:"7px 8px", border:"none", fontFamily:"'Courier New',monospace", fontSize:"15px", textAlign:"center", background:"transparent", boxSizing:"border-box", outline:"none" };
+const cellS = { width:"100%", padding:"5px 4px", border:"none", fontFamily:"'Courier New',monospace", fontSize:"inherit", textAlign:"center", background:"transparent", boxSizing:"border-box", outline:"none" };
 function btnS(bg) { return { padding:"8px 18px", background:bg, color:"#fff", border:"none", borderRadius:"6px", fontFamily:"'Courier New',monospace", fontSize:"14px", cursor:"pointer", boxShadow:"0 2px 5px rgba(0,0,0,0.14)", whiteSpace:"nowrap" }; }
